@@ -1,11 +1,11 @@
 {
   "permissions": {
     "allow": [
-      "PowerShell(.\venv\Scripts\pip install *)",
-      "PowerShell(.\venv\Scripts\jupyter nbconvert *)",
-      "PowerShell(.\venv\Scripts\streamlit run *)",
-      "PowerShell(.\venv\Scripts\python *)",
-      "PowerShell(.\venv\Scripts\python -m ipykernel *)",
+      "PowerShell(.\\venv\\Scripts\\pip install *)",
+      "PowerShell(.\\venv\\Scripts\\jupyter nbconvert *)",
+      "PowerShell(.\\venv\\Scripts\\streamlit run *)",
+      "PowerShell(.\\venv\\Scripts\\python *)",
+      "PowerShell(.\\venv\\Scripts\\python -m ipykernel *)",
       "PowerShell(git init *)",
       "PowerShell(git add *)",
       "PowerShell(git commit *)",
