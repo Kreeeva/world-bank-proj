@@ -108,40 +108,113 @@ tab1, tab2, tab3 = st.tabs(["📊 Risk Score", "📈 Feature Importance", "🗄�
 
 # ── Tab 1: Risk Score ─────────────────────────────────────────────────────
 with tab1:
-    col1, col2 = st.columns([1, 2])
+    # ── Risk Score Card ────────────────────────────────────────────────────
+    col_score, col_metrics = st.columns([1, 1])
 
-    with col1:
-        st.markdown(f"### {risk_emoji} {risk_label}")
-        st.metric("Probability of Distress", f"{prob:.1%}")
-        st.progress(min(prob * 4, 1.0))
-        st.caption("Scale: Low < 10%  ·  Medium 10–25%  ·  High > 25%")
+    with col_score:
+        st.markdown(f"## {risk_emoji} {risk_label}")
+        st.metric("Probability of Distress", f"{prob:.1%}",
+                  delta=f"{prob - 0.093:.1%}" if prob != 0.093 else None,
+                  delta_color="inverse")
 
-    with col2:
-        st.subheader("Survival Probability Over Contract Life")
-        survival_input = pd.DataFrame([{
-            'ContractPeriod':      contract_period,
-            'PercentPrivate':      pct_private,
-            'TotalInvestment':     total_investment,
-            'has_direct_support':  int(has_direct),
-            'has_multilateral':    int(has_multilateral),
-            'is_subsaharan':       int(is_subsaharan),
-            'is_brownfield_div':   int(is_brownfield),
-            'is_high_risk_sector': int(is_high_risk_sec),
-            'leverage_ratio':      leverage,
-        }])
-        try:
-            surv = cph.predict_survival_function(survival_input)
-            fig, ax = plt.subplots(figsize=(8, 3))
-            surv.rename(columns={0: 'This Project'}).plot(ax=ax, color=risk_color, linewidth=2)
-            ax.fill_between(surv.index, surv.iloc[:, 0], alpha=0.15, color=risk_color)
-            ax.set_ylim(0, 1)
-            ax.set_xlabel('Years since financial closure')
-            ax.set_ylabel('P(project remains active)')
-            plt.tight_layout()
-            st.pyplot(fig, use_container_width=True)
-            plt.close()
-        except Exception as e:
-            st.info(f"Survival curve unavailable: {e}")
+        # Risk scale indicator
+        risk_ranges = {
+            'Low\n(<10%)': 0.05,
+            'Medium\n(10–25%)': 0.175,
+            'High\n(>25%)': 0.35
+        }
+        fig_scale, ax_scale = plt.subplots(figsize=(8, 1.5))
+        for i, (label, val) in enumerate(risk_ranges.items()):
+            color = 'green' if i == 0 else ('orange' if i == 1 else 'red')
+            ax_scale.barh([0], 0.15, left=i*0.33, height=0.3, color=color, alpha=0.7, edgecolor='black', linewidth=0.5)
+            ax_scale.text(i*0.33 + 0.075, 0, label, ha='center', va='center', fontsize=9, fontweight='bold')
+        marker_pos = prob
+        ax_scale.axvline(marker_pos, color='black', linewidth=3, linestyle='-', label='This Project')
+        ax_scale.set_xlim(-0.05, 1.05)
+        ax_scale.set_ylim(-1, 1)
+        ax_scale.set_xticks([])
+        ax_scale.set_yticks([])
+        ax_scale.spines['top'].set_visible(False)
+        ax_scale.spines['right'].set_visible(False)
+        ax_scale.spines['left'].set_visible(False)
+        ax_scale.spines['bottom'].set_visible(False)
+        plt.tight_layout()
+        st.pyplot(fig_scale, use_container_width=True)
+        plt.close()
+
+        st.caption("🟢 Low: <10% · 🟡 Medium: 10–25% · 🔴 High: >25%")
+
+    with col_metrics:
+        st.markdown("### Key Project Metrics")
+        metric_cols = st.columns(2)
+        with metric_cols[0]:
+            st.metric("Contract Period", f"{contract_period} years")
+            st.metric("Private Ownership", f"{pct_private}%")
+        with metric_cols[1]:
+            st.metric("Investment", f"${total_investment:,.0f}M")
+            st.metric("Leverage", f"{leverage:.0%}")
+
+    # ── Survival Curve ─────────────────────────────────────────────────────
+    st.markdown("---")
+    st.markdown("### Project Longevity: Survival Probability Over Contract Life")
+    st.markdown("*What % of similar projects remain active after N years from financial closure?*")
+
+    survival_input = pd.DataFrame([{
+        'ContractPeriod':      contract_period,
+        'PercentPrivate':      pct_private,
+        'TotalInvestment':     total_investment,
+        'has_direct_support':  int(has_direct),
+        'has_multilateral':    int(has_multilateral),
+        'is_subsaharan':       int(is_subsaharan),
+        'is_brownfield_div':   int(is_brownfield),
+        'is_high_risk_sector': int(is_high_risk_sec),
+        'leverage_ratio':      leverage,
+    }])
+
+    try:
+        surv = cph.predict_survival_function(survival_input)
+
+        fig, ax = plt.subplots(figsize=(12, 5))
+
+        # Plot survival curve
+        surv_data = surv.iloc[:, 0]
+        ax.plot(surv_data.index, surv_data.values, color=risk_color, linewidth=3, label='This Project', marker='o', markersize=4)
+        ax.fill_between(surv_data.index, surv_data.values, alpha=0.2, color=risk_color)
+
+        # Add reference lines
+        ax.axhline(0.5, color='gray', linestyle='--', linewidth=1, alpha=0.5, label='50% survival')
+        ax.axhline(0.75, color='gray', linestyle=':', linewidth=1, alpha=0.5, label='75% survival')
+
+        # Formatting
+        ax.set_xlabel('Years since financial closure', fontsize=11, fontweight='bold')
+        ax.set_ylabel('Probability project remains active', fontsize=11, fontweight='bold')
+        ax.set_ylim(0, 1.05)
+        ax.grid(True, alpha=0.2, linestyle=':')
+        ax.legend(loc='upper right', fontsize=10)
+
+        # Add annotations for key years
+        if len(surv_data) > 0:
+            mid_idx = len(surv_data) // 2
+            end_idx = min(len(surv_data) - 1, int(contract_period))
+            if end_idx > 0 and end_idx < len(surv_data):
+                ax.annotate(f'{surv_data.iloc[end_idx]:.1%}',
+                           xy=(surv_data.index[end_idx], surv_data.iloc[end_idx]),
+                           xytext=(10, 10), textcoords='offset points',
+                           bbox=dict(boxstyle='round,pad=0.5', facecolor=risk_color, alpha=0.7, edgecolor='none'),
+                           fontsize=10, fontweight='bold', color='white',
+                           arrowprops=dict(arrowstyle='->', color=risk_color, lw=1.5))
+
+        plt.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close()
+
+        # Key insight
+        final_survival = surv_data.iloc[-1] if len(surv_data) > 0 else np.nan
+        st.success(f"📌 **Insight**: This project has a {final_survival:.1%} probability of remaining active through its full {contract_period}-year contract period.")
+
+    except Exception as e:
+        st.warning(f"⚠️ Survival analysis unavailable: {str(e)}")
+        st.info("The Cox model may not have enough data for this project configuration.")
 
 # ── Tab 2: Feature Importance ─────────────────────────────────────────────
 with tab2:
